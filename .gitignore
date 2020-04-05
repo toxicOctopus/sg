@@ -1,2 +1,12 @@
+# compiled
 bin/*
+
+# IDE
 .vscode
+.idea
+
+# deps
+vendor
+
+# config
+config.json

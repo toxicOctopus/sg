@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/centrifugal/centrifuge-go"
-	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/jessevdk/go-flags"
 	"github.com/valyala/fasthttp"
 
@@ -84,7 +84,7 @@ func main() {
 	c := newConnection()
 	defer c.Close()
 
-	
+
 	c.Publish(TwitchBossChannel, []byte("{\"kek\":\"lul\"}"))
 
 	if err := fasthttp.ListenAndServe(args.Host + ":" + args.Port, fasthttp.CompressHandler(indexHandler)); err != nil {
@@ -104,7 +104,7 @@ func init() {
 	jsClient = string(content)
 
 	startTime = time.Now()
-	JWTToken = "14b55e1d-23fd-46da-be67-3d256a339a63"
+	JWTToken = "68a91e24-4a3f-4046-b8c7-faccc884f9fc"
 }
 
 func indexHandler(ctx *fasthttp.RequestCtx) {
