@@ -2,5 +2,10 @@
   "web": {
     "host": "localhost",
     "port": 80
+  },
+  "configReadInterval": "1s",
+  "logLevel": "info",
+  "ws": {
+    "jwtToken": ""
   }
 }

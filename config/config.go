@@ -1,11 +1,49 @@
 package config
 
 import (
-	"github.com/ChimeraCoder/gojson"
-	"github.com/pkg/errors"
+	"encoding/json"
+	"github.com/peterbourgon/mergemap"
 	"io/ioutil"
 	"os"
+	"sync"
+	"time"
+
+	"github.com/ChimeraCoder/gojson"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
+
+const (
+	BaseConfigFolder = "config"
+	GeneratedConfigFile = "generated_config.go"
+
+	envSubFolder = "env"
+	// contains all configs
+	configPath = BaseConfigFolder + "/" + envSubFolder
+	// this file must be present at configPath
+	valuesConfigName = "values.json"
+
+	defaultUpdateInterval = time.Second
+)
+
+type LiveConfig struct {
+	cfg Config
+	mu sync.RWMutex
+}
+
+func (c *LiveConfig) SetNew(new Config) {
+	c.mu.Lock()
+	c.cfg = new
+	c.mu.Unlock()
+}
+
+func (c *LiveConfig) GetCfg() Config {
+	c.mu.RLock()
+	cp := c.cfg
+	c.mu.RUnlock()
+
+	return cp
+}
 
 // Generate from json config to go struct
 func Generate(from, to string) (err error) {
@@ -33,7 +71,75 @@ func Generate(from, to string) (err error) {
 	return
 }
 
-// LiveRead config read blocking call
-func LiveRead() {
+// Read once read config files
+func Read(env Env) (Config, error) {
+	var err error
+	cfg := Config{}
+	defaultConfig := map[string]interface{}{}
+	envConfig := map[string]interface{}{}
 
+	err = readConfigFile(GetDefaultValuesPath(), &defaultConfig)
+	if err != nil {
+		return cfg, errors.Wrap(err, "default config")
+	}
+	err = readConfigFile(configPath + "/" + env.String() + "/" + valuesConfigName, &envConfig)
+	if err == nil {
+		defaultConfig = mergemap.Merge(defaultConfig, envConfig)
+	} else {
+		logrus.Debug(configPath + "/" + env.String() + "/" + valuesConfigName, err)
+	}
+	cfgJson, err := json.Marshal(defaultConfig)
+	if err != nil {
+		return cfg, errors.Wrap(err, "after config merge")
+	}
+	err = json.Unmarshal(cfgJson, &cfg)
+	if err != nil {
+		return cfg, errors.Wrap(err, "after merged config unmarshal")
+	}
+
+	return cfg, nil
+}
+
+func readConfigFile(path string, out *map[string]interface{}) error {
+	cfg, err := ioutil.ReadFile(path)
+	if err != nil {
+		return errors.Wrap(err, "reading config file")
+	}
+	err = json.Unmarshal(cfg, &out)
+	if err != nil {
+		return errors.Wrap(err, "config file is not valid json")
+	}
+
+	return nil
+}
+
+// LiveRead config read blocking call
+func LiveRead(env Env, cfg *LiveConfig, d time.Duration) {
+	for {
+		time.Sleep(d)
+
+		newConfig, err := Read(env)
+		if err != nil {
+			logrus.Error(err)
+			continue
+		}
+		d = StringToUpdateInterval(newConfig.ConfigReadInterval)
+		cfg.SetNew(newConfig)
+		logrus.Debug("new config", newConfig)
+	}
+}
+
+// StringToUpdateInterval convert with default value
+func StringToUpdateInterval(s string) time.Duration {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		d = defaultUpdateInterval
+		logrus.Error(err)
+	}
+
+	return d
+}
+
+func GetDefaultValuesPath() string {
+	return configPath + "/" + valuesConfigName
 }

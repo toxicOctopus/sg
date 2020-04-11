@@ -1,29 +1,29 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"log"
-	"os"
+	"strconv"
 	"time"
 
 	"github.com/centrifugal/centrifuge-go"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/sirupsen/logrus"
+	"github.com/toxicOctopus/sg/config"
 	"github.com/valyala/fasthttp"
 )
 
-var jsClient string
-
 const (
-	TwitchBossChannel = "public:tb"
+	twitchBossChannel = "public:tb"
 )
-
 
 var (
-	startTime time.Time
-	
-	JWTToken string
+	jsClient     string
+	startTime    time.Time
+	env          config.Env
+	globalConfig config.LiveConfig
 )
-
 
 func connToken(user string, exp int64) string {
 	// NOTE that JWT must be generated on backend side of your application!
@@ -32,7 +32,7 @@ func connToken(user string, exp int64) string {
 	if exp > 0 {
 		claims["exp"] = exp
 	}
-	t, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(JWTToken))
+	t, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(globalConfig.GetCfg().Ws.JwtToken))
 	if err != nil {
 		panic(err)
 	}
@@ -62,45 +62,63 @@ func newConnection() *centrifuge.Client {
 	c.OnDisconnect(handler)
 	c.OnConnect(handler)
 	c.OnError(handler)
-	
+
 	err := c.Connect()
 	if err != nil {
-		log.Fatalln(err)
+		logrus.Fatalln(err)
 	}
 	return c
 }
 
-
 func main() {
-	log.Println(startTime)
-	log.Println("Start program")
+	logrus.Info(startTime)
+	logrus.Info("Start program")
 	c := newConnection()
-	defer c.Close()
+	defer func() {
+		closeErr := c.Close()
+		logrus.Error(closeErr)
+	}()
 
-
-	err := c.Publish(TwitchBossChannel, []byte("{\"kek\":\"lul\"}"))
+	err := c.Publish(twitchBossChannel, []byte("{\"kek\":\"lul\"}"))
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 
-	//if err := fasthttp.ListenAndServe(args.Host + ":" + args.Port, fasthttp.CompressHandler(indexHandler)); err != nil {
-	//	log.Fatalf("Error in ListenAndServe: %s", err)
-	//}
+	webCfg := globalConfig.GetCfg().Web
+	if err := fasthttp.ListenAndServe(webCfg.Host + ":" + strconv.FormatInt(webCfg.Port, 10), fasthttp.CompressHandler(indexHandler)); err != nil {
+		logrus.Fatalf("Error in ListenAndServe: %s", err)
+	}
 }
 
 func init() {
-	//_, err := flags.Parse(&args)
-	//if nil != err {
-	//	os.Exit(1)
-	//}
+	var err error
+
+	var environment string
+	flag.StringVar(&environment, "env", "", "(re)generate config code")
+	flag.Parse()
+
+	env = config.GetEnvFromString(environment)
+	cfg, err := config.Read(env)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logLevel, err := logrus.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		logLevel = logrus.WarnLevel
+		logrus.Warn(err)
+	}
+	logrus.SetLevel(logLevel)
+	logrus.Debug("result config", cfg)
+	globalConfig.SetNew(cfg)
+
 	content, err := ioutil.ReadFile("resources/wsClient.js")
 	if nil != err {
-		os.Exit(1)
+		logrus.Fatal(err)
 	}
 	jsClient = string(content)
-
 	startTime = time.Now()
-	JWTToken = "68a91e24-4a3f-4046-b8c7-faccc884f9fc"
+
+	go config.LiveRead(env, &globalConfig, config.StringToUpdateInterval(globalConfig.GetCfg().ConfigReadInterval))
 }
 
 func indexHandler(ctx *fasthttp.RequestCtx) {
@@ -108,13 +126,13 @@ func indexHandler(ctx *fasthttp.RequestCtx) {
 	ctx.Response.AppendBodyString(`
 		<html>
 		<script>
-		`+jsClient+`
+		` + jsClient + `
 		</script>
 		<script>
 			var centrifuge = new Centrifuge('ws://localhost:8000/connection/websocket');
-			centrifuge.setToken("`+connToken("112", 0)+`");
+			centrifuge.setToken("` + connToken("112", 0) + `");
 
-			centrifuge.subscribe("`+TwitchBossChannel+`", function(message) {
+			centrifuge.subscribe("` + twitchBossChannel + `", function(message) {
 				console.log(message);
 			});
 

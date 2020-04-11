@@ -3,7 +3,8 @@ package main
 import (
 	"flag"
 	"log"
-	"sg/config"
+
+	"github.com/toxicOctopus/sg/config"
 )
 
 type action int
@@ -19,7 +20,7 @@ func main() {
 
 	switch currentAction {
 	case generateConfig:
-		err = config.Generate("config/env/values.json", "config/generated/config.go")
+		err = config.Generate(config.GetDefaultValuesPath(), config.BaseConfigFolder + "/" + config.GeneratedConfigFile)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -31,9 +32,9 @@ func main() {
 func init() {
 	var genConfig bool
 	flag.BoolVar(&genConfig, "generate-config", false, "(re)generate config code")
+	flag.Parse()
+
 	if genConfig {
 		currentAction = generateConfig
 	}
-
-	flag.Parse()
 }
