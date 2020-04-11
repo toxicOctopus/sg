@@ -11,7 +11,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/valyala/fasthttp"
 
-	"sg/utils"
+	"sg/env"
 )
 
 var jsClient string
@@ -21,7 +21,7 @@ const (
 )
 
 type arguments struct {
-	utils.Arguments
+	env.Arguments
 }
 
 var (
