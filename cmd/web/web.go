@@ -8,10 +8,7 @@ import (
 
 	"github.com/centrifugal/centrifuge-go"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/jessevdk/go-flags"
 	"github.com/valyala/fasthttp"
-
-	"sg/env"
 )
 
 var jsClient string
@@ -20,12 +17,8 @@ const (
 	TwitchBossChannel = "public:tb"
 )
 
-type arguments struct {
-	env.Arguments
-}
 
 var (
-	args      arguments
 	startTime time.Time
 	
 	JWTToken string
@@ -85,18 +78,21 @@ func main() {
 	defer c.Close()
 
 
-	c.Publish(TwitchBossChannel, []byte("{\"kek\":\"lul\"}"))
-
-	if err := fasthttp.ListenAndServe(args.Host + ":" + args.Port, fasthttp.CompressHandler(indexHandler)); err != nil {
-		log.Fatalf("Error in ListenAndServe: %s", err)
+	err := c.Publish(TwitchBossChannel, []byte("{\"kek\":\"lul\"}"))
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	//if err := fasthttp.ListenAndServe(args.Host + ":" + args.Port, fasthttp.CompressHandler(indexHandler)); err != nil {
+	//	log.Fatalf("Error in ListenAndServe: %s", err)
+	//}
 }
 
 func init() {
-	_, err := flags.Parse(&args)
-	if nil != err {
-		os.Exit(1)
-	}
+	//_, err := flags.Parse(&args)
+	//if nil != err {
+	//	os.Exit(1)
+	//}
 	content, err := ioutil.ReadFile("resources/wsClient.js")
 	if nil != err {
 		os.Exit(1)

@@ -9,4 +9,4 @@ bin/*
 vendor
 
 # config
-config.json
+config/centrifugo.json
