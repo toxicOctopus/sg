@@ -2,15 +2,14 @@ package config
 
 import (
 	"encoding/json"
-	"github.com/peterbourgon/mergemap"
 	"io/ioutil"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/ChimeraCoder/gojson"
+	"github.com/peterbourgon/mergemap"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -85,8 +84,6 @@ func Read(env Env) (Config, error) {
 	err = readConfigFile(configPath + "/" + env.String() + "/" + valuesConfigName, &envConfig)
 	if err == nil {
 		defaultConfig = mergemap.Merge(defaultConfig, envConfig)
-	} else {
-		logrus.Debug(configPath + "/" + env.String() + "/" + valuesConfigName, err)
 	}
 	cfgJson, err := json.Marshal(defaultConfig)
 	if err != nil {
@@ -114,18 +111,17 @@ func readConfigFile(path string, out *map[string]interface{}) error {
 }
 
 // LiveRead config read blocking call
-func LiveRead(env Env, cfg *LiveConfig, d time.Duration) {
+func LiveRead(env Env, cfg *LiveConfig, d time.Duration, errorCallback func(error)) {
 	for {
 		time.Sleep(d)
 
 		newConfig, err := Read(env)
 		if err != nil {
-			logrus.Error(err)
+			errorCallback(err)
 			continue
 		}
 		d = StringToUpdateInterval(newConfig.ConfigReadInterval)
 		cfg.SetNew(newConfig)
-		logrus.Debug("new config", newConfig)
 	}
 }
 
@@ -134,7 +130,6 @@ func StringToUpdateInterval(s string) time.Duration {
 	d, err := time.ParseDuration(s)
 	if err != nil {
 		d = defaultUpdateInterval
-		logrus.Error(err)
 	}
 
 	return d

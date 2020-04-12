@@ -3,7 +3,7 @@
     "host": "localhost",
     "port": 80
   },
-  "configReadInterval": "1s",
+  "configReadInterval": "1m",
   "logLevel": "info",
   "ws": {
     "jwtToken": ""

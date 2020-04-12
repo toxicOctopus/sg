@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"io/ioutil"
-	"log"
 	"strconv"
 	"time"
 
@@ -42,15 +41,15 @@ func connToken(user string, exp int64) string {
 type eventHandler struct{}
 
 func (h *eventHandler) OnConnect(c *centrifuge.Client, e centrifuge.ConnectEvent) {
-	log.Println("Connected")
+	logrus.Debug("Connected")
 }
 
 func (h *eventHandler) OnError(c *centrifuge.Client, e centrifuge.ErrorEvent) {
-	log.Println("Error", e.Message)
+	logrus.Debug("Error ", e.Message)
 }
 
 func (h *eventHandler) OnDisconnect(c *centrifuge.Client, e centrifuge.DisconnectEvent) {
-	log.Println("Disconnected", e.Reason)
+	logrus.Debug("Disconnected ", e.Reason)
 }
 
 func newConnection() *centrifuge.Client {
@@ -81,11 +80,11 @@ func main() {
 
 	err := c.Publish(twitchBossChannel, []byte("{\"kek\":\"lul\"}"))
 	if err != nil {
-		logrus.Fatal(err)
+		logrus.Error(err)
 	}
 
 	webCfg := globalConfig.GetCfg().Web
-	if err := fasthttp.ListenAndServe(webCfg.Host + ":" + strconv.FormatInt(webCfg.Port, 10), fasthttp.CompressHandler(indexHandler)); err != nil {
+	if err := fasthttp.ListenAndServe(webCfg.Host+":"+strconv.FormatInt(webCfg.Port, 10), fasthttp.CompressHandler(indexHandler)); err != nil {
 		logrus.Fatalf("Error in ListenAndServe: %s", err)
 	}
 }
@@ -118,7 +117,13 @@ func init() {
 	jsClient = string(content)
 	startTime = time.Now()
 
-	go config.LiveRead(env, &globalConfig, config.StringToUpdateInterval(globalConfig.GetCfg().ConfigReadInterval))
+	go config.LiveRead(
+		env,
+		&globalConfig,
+		config.StringToUpdateInterval(globalConfig.GetCfg().ConfigReadInterval),
+		func(e error) {
+			logrus.Error(e)
+		})
 }
 
 func indexHandler(ctx *fasthttp.RequestCtx) {
