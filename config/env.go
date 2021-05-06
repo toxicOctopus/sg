@@ -1,21 +1,20 @@
 package config
 
-// Env type with hardcoded values because logic may be depended from env
 type Env int
 
 const (
 	// Local development env
 	Local Env = iota
 	// Production environment
-	Prod
+	Production
 )
 
 var envMap map[Env]string
 
 func init() {
 	envMap = map[Env]string{
-		Local: "local",
-		Prod:  "prod",
+		Local:      "local",
+		Production: "production",
 	}
 }
 
