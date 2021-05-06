@@ -6,15 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/centrifugal/centrifuge-go"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/sirupsen/logrus"
+	"github.com/toxicOctopus/sg/centrifugo"
 	"github.com/toxicOctopus/sg/config"
+	"github.com/toxicOctopus/sg/twitch"
 	"github.com/valyala/fasthttp"
-)
-
-const (
-	twitchBossChannel = "public:tb"
 )
 
 var (
@@ -24,64 +20,10 @@ var (
 	globalConfig config.LiveConfig
 )
 
-func connToken(user string, exp int64) string {
-	// NOTE that JWT must be generated on backend side of your application!
-	// Here we are generating it on client side only for example simplicity.
-	claims := jwt.MapClaims{"sub": user}
-	if exp > 0 {
-		claims["exp"] = exp
-	}
-	t, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(globalConfig.GetCfg().Ws.JwtToken))
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
-type eventHandler struct{}
-
-func (h *eventHandler) OnConnect(c *centrifuge.Client, e centrifuge.ConnectEvent) {
-	logrus.Debug("Connected")
-}
-
-func (h *eventHandler) OnError(c *centrifuge.Client, e centrifuge.ErrorEvent) {
-	logrus.Debug("Error ", e.Message)
-}
-
-func (h *eventHandler) OnDisconnect(c *centrifuge.Client, e centrifuge.DisconnectEvent) {
-	logrus.Debug("Disconnected ", e.Reason)
-}
-
-func newConnection() *centrifuge.Client {
-	wsURL := "ws://localhost:8000/connection/websocket"
-
-	c := centrifuge.New(wsURL, centrifuge.DefaultConfig())
-	c.SetToken(connToken("551", 0))
-	handler := &eventHandler{}
-	c.OnDisconnect(handler)
-	c.OnConnect(handler)
-	c.OnError(handler)
-
-	err := c.Connect()
-	if err != nil {
-		logrus.Fatalln(err)
-	}
-	return c
-}
-
 func main() {
-	logrus.Info(startTime)
-	logrus.Info("Start program")
-	c := newConnection()
-	defer func() {
-		closeErr := c.Close()
-		logrus.Error(closeErr)
-	}()
+	logrus.Info("Starting up @ " + startTime.String())
 
-	err := c.Publish(twitchBossChannel, []byte("{\"kek\":\"lul\"}"))
-	if err != nil {
-		logrus.Error(err)
-	}
+	go runTwitchListener(globalConfig.GetCfg())
 
 	webCfg := globalConfig.GetCfg().Web
 	if err := fasthttp.ListenAndServe(webCfg.Host+":"+strconv.FormatInt(webCfg.Port, 10), fasthttp.CompressHandler(indexHandler)); err != nil {
@@ -91,42 +33,45 @@ func main() {
 
 func init() {
 	var err error
-
 	var environment string
+
 	flag.StringVar(&environment, "env", "", "(re)generate config code")
 	flag.Parse()
 
 	env = config.GetEnvFromString(environment)
-	cfg, err := config.Read(env)
+	cfg, err := config.Read(env, config.GetDefaultValuesPath())
 	if err != nil {
 		logrus.Fatal(err)
 	}
+
 	logLevel, err := logrus.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		logLevel = logrus.WarnLevel
 		logrus.Warn(err)
 	}
+
 	logrus.SetLevel(logLevel)
-	logrus.Debug("result config", cfg)
+	logrus.Debug("startup config", cfg)
 	globalConfig.SetNew(cfg)
 
-	content, err := ioutil.ReadFile("resources/wsClient.js")
+	content, err := ioutil.ReadFile(centrifugo.JSClientPath)
 	if nil != err {
 		logrus.Fatal(err)
 	}
 	jsClient = string(content)
+
 	startTime = time.Now()
 
 	go config.LiveRead(
 		env,
 		&globalConfig,
-		config.StringToUpdateInterval(globalConfig.GetCfg().ConfigReadInterval),
 		func(e error) {
 			logrus.Error(e)
 		})
 }
 
 func indexHandler(ctx *fasthttp.RequestCtx) {
+	cfg := globalConfig.GetCfg()
 	ctx.SetContentType("text/html; charset=utf8")
 	ctx.Response.AppendBodyString(`
 		<html>
@@ -134,16 +79,54 @@ func indexHandler(ctx *fasthttp.RequestCtx) {
 		` + jsClient + `
 		</script>
 		<script>
-			var centrifuge = new Centrifuge('ws://localhost:8000/connection/websocket');
-			centrifuge.setToken("` + connToken("112", 0) + `");
+			var centrifuge = new Centrifuge('` + cfg.Centrifugo.URL + `');
+			centrifuge.setToken("` + centrifugo.GetConnToken("112", cfg.Centrifugo.JwtToken, 0) + `");
 
-			centrifuge.subscribe("` + twitchBossChannel + `", function(message) {
+			centrifuge.subscribe("` + cfg.Centrifugo.TwitchBossChannel + `", function(message) {
 				console.log(message);
+				document.getElementById('message-box').innerHTML += '<br>' + message.data.message;
 			});
 
 			centrifuge.connect();
 		</script>
-		ty pidor
+		<div id="message-box"></div>
 		</html>
 	`)
+}
+
+// Blocking. Subscribes to twitch chat, publishes messages to centrifugo
+func runTwitchListener(cfg config.Config) {
+	centrifugoClient, err := centrifugo.GetClient(cfg.Centrifugo.URL, cfg.Centrifugo.BackendUserID, cfg.Centrifugo.JwtToken)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	defer func() {
+		closeErr := centrifugoClient.Close()
+		logrus.Error(closeErr)
+	}()
+
+	twitchClient, err := twitch.GetClient(cfg.Twitch.Nick, cfg.Twitch.Pass)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	defer func() {
+		closeErr := twitchClient.Close()
+		logrus.Error(closeErr)
+	}()
+
+	twitchClient.Listen(
+		cfg.Twitch.Nick,
+		func(from, message string) { // message callback
+			err = centrifugoClient.Publish(cfg.Centrifugo.TwitchBossChannel, centrifugo.FormMessage(message))
+			if err != nil {
+				logrus.Error(err)
+			}
+			logrus.Debug(from, ": ", message)
+		},
+		func(err error) { // error callback
+			logrus.Fatal(err)
+		},
+		func(err error) { // warn callback
+			logrus.Error(err)
+		})
 }

@@ -10,4 +10,4 @@ vendor
 
 # config
 config/centrifugo.json
-config/env/local
+config/env
