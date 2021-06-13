@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
@@ -25,7 +26,7 @@ func TestGenerate(t *testing.T) {
 			"successful",
 			args{
 				from: GetDefaultValuesPath(),
-				to:   "/tmp/testResultStruct.go",
+				to:   filepath.Join(os.TempDir(), "testResultStruct.go"),
 			},
 			false,
 		},
@@ -75,7 +76,7 @@ func TestGetDefaultValuesPath(t *testing.T) {
 	}{
 		{
 			name: "only 1 case",
-			want: "config/env/values.json",
+			want: filepath.Join("config", "env", "values.json"),
 		},
 	}
 	for _, tt := range tests {
@@ -134,7 +135,7 @@ func TestRead(t *testing.T) {
 					Port: 8182,
 				},
 			},
-			wantErr: false,
+			wantErr:      false,
 			wantMismatch: false,
 		},
 		{
@@ -172,7 +173,7 @@ func TestRead(t *testing.T) {
 					Port: 8182,
 				},
 			},
-			wantErr: false,
+			wantErr:      false,
 			wantMismatch: true,
 		},
 	}
@@ -229,7 +230,6 @@ func Test_getConfigInterval(t *testing.T) {
 			},
 			want: minimalUpdateInterval,
 		},
-
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
