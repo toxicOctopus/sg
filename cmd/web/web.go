@@ -114,6 +114,8 @@ func runTwitchListener(cfg config.Config) {
 		logrus.Error(closeErr)
 	}()
 
+
+
 	twitchClient.Listen(
 		cfg.Twitch.Nick,
 		func(from, message string) { // message callback

@@ -1,10 +1,10 @@
 # stream games
 
-## About
+##About
 
-Twitch-only(for now) chat game based on viewer's messages ![alt text](https://github.com/toxicOctopus/sg/blob/master/kappa.png?raw=true).
+Twitch-only(for now) chat game based on viewer's messages ![Kapp](https://github.com/toxicOctopus/sg/blob/master/kappa.png?raw=true).
 
-## Required configs
+##Required configs
 
 - `config/env/values.json`
 
@@ -38,3 +38,8 @@ simplest usable config(with ur creds):
   ]
 }
 ```
+
+##How to launch
+
+Run `make generate-config` or `make win-generate-config` (for Windows) after
+creating configs in required configs.
