@@ -2,9 +2,10 @@ package main
 
 import (
 	"flag"
-	"github.com/toxicOctopus/sg/config"
 	"log"
-	"os"
+	"path/filepath"
+
+	"github.com/toxicOctopus/sg/internal/config"
 )
 
 type action int
@@ -20,7 +21,7 @@ func main() {
 
 	switch currentAction {
 	case generateConfig:
-		err = config.Generate(config.GetDefaultValuesPath(), config.BaseConfigFolder + string(os.PathSeparator) + config.GeneratedConfigFile)
+		err = config.Generate(config.GetDefaultValuesPath(), filepath.Join("internal", "config", "generated_config.go"))
 		if err != nil {
 			log.Fatal(err)
 		}

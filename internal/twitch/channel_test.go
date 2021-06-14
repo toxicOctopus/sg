@@ -14,22 +14,20 @@ func TestRegisteredChannels_GetChannel(t *testing.T) {
 	}
 
 	rc := RegisteredChannels{
-		Channels: []Channel{
-			{
-				Name: "weebdog",
-			},
-			{
-				Name: "reckfuru",
-			},
-			{
-				Name: "podasoppin",
-			},
-			{
-				Name: "drrespect",
-			},
-			{
-				Name: "horsen",
-			},
+		{
+			Name: "weebdog",
+		},
+		{
+			Name: "reckfuru",
+		},
+		{
+			Name: "podasoppin",
+		},
+		{
+			Name: "drrespect",
+		},
+		{
+			Name: "horsen",
 		},
 	}
 	tests := []struct {

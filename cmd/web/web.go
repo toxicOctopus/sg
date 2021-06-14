@@ -6,10 +6,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/toxicOctopus/sg/internal/centrifugo"
+	"github.com/toxicOctopus/sg/internal/config"
+	"github.com/toxicOctopus/sg/internal/twitch"
+
 	"github.com/sirupsen/logrus"
-	"github.com/toxicOctopus/sg/centrifugo"
-	"github.com/toxicOctopus/sg/config"
-	"github.com/toxicOctopus/sg/twitch"
 	"github.com/valyala/fasthttp"
 )
 
@@ -113,8 +114,6 @@ func runTwitchListener(cfg config.Config) {
 		closeErr := twitchClient.Close()
 		logrus.Error(closeErr)
 	}()
-
-
 
 	twitchClient.Listen(
 		cfg.Twitch.Nick,

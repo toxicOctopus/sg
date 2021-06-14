@@ -1,6 +1,6 @@
 package twitch
 
-import "github.com/toxicOctopus/sg/game"
+import "github.com/toxicOctopus/sg/internal/pkg/game"
 
 type Emote struct {
 	Name       string

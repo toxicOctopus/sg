@@ -10,7 +10,7 @@ const (
 	ViewerDamage ViewerAction = iota + 1
 	ViewerDodge
 	ViewerBlock
-	ViewerOP
+	ViewerOverPower
 )
 
 const (

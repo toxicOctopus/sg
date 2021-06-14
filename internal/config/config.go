@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -14,26 +15,32 @@ import (
 )
 
 const (
-	BaseConfigFolder = "config"
-	GeneratedConfigFile = "generated_config.go"
-
+	BaseConfigFolder    = "config"
 	envSubFolder = "env"
+
 	// this file must be present at configPath
-	valuesConfigName = "values.json"
+	valuesConfigName  = "values.json"
 	configPermissions = 0644
 
 	defaultUpdateInterval = time.Second
 	minimalUpdateInterval = time.Millisecond * 10
 )
 
-var (
-	// contains all configs
-	configPath = filepath.Join(BaseConfigFolder, envSubFolder)
-)
+type Params struct {
+	BaseConfigFolder    string
+	EnvSubFolder        string
+
+	// this file must be present at configPath
+	ValuesConfigName  string
+	ConfigPermissions fs.FileMode
+
+	DefaultUpdateInterval time.Duration
+	MinimalUpdateInterval time.Duration
+}
 
 type LiveConfig struct {
 	cfg Config
-	mu sync.RWMutex
+	mu  sync.RWMutex
 }
 
 func (c *LiveConfig) SetNew(new Config) {
@@ -88,7 +95,7 @@ func Read(env Env, valuesPath string) (Config, error) {
 		return cfg, errors.Wrap(err, "default config")
 	}
 
-	err = readConfigFile(filepath.Join(configPath, env.String(), valuesConfigName), &envConfig)
+	err = readConfigFile(filepath.Join(filepath.Join(BaseConfigFolder, envSubFolder), env.String(), valuesConfigName), &envConfig)
 	if err == nil {
 		defaultConfig = mergemap.Merge(defaultConfig, envConfig)
 	}
@@ -148,5 +155,5 @@ func getConfigInterval(s string) time.Duration {
 }
 
 func GetDefaultValuesPath() string {
-	return filepath.Join(configPath, valuesConfigName)
+	return filepath.Join(BaseConfigFolder, envSubFolder, valuesConfigName)
 }
