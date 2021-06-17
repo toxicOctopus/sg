@@ -11,8 +11,8 @@ type Emote struct {
 type EmoteList []Emote
 
 // MessageIsEmote checks if message is a valid emote from provided list
-func MessageIsEmote(message string, list EmoteList) bool {
-	for _, emote := range list {
+func (l EmoteList) MessageIsEmote(message string) bool {
+	for _, emote := range l {
 		if emote.Name == message {
 			return true
 		}

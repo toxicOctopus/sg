@@ -49,7 +49,7 @@ func TestMessageIsEmote(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := MessageIsEmote(tt.args.message, tt.args.list); got != tt.want {
+			if got := tt.args.list.MessageIsEmote(tt.args.message); got != tt.want {
 				t.Errorf("MessageIsEmote() = %v, want %v", got, tt.want)
 			}
 		})

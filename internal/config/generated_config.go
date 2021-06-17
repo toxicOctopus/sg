@@ -9,7 +9,14 @@ type Config struct {
 	} `json:"centrifugo"`
 	ConfigReadInterval string `json:"configReadInterval"`
 	LogLevel           string `json:"logLevel"`
-	Twitch             struct {
+	Postgres           struct {
+		Host     string `json:"host"`
+		Password string `json:"password"`
+		Port     int64  `json:"port"`
+		Scheme   string `json:"scheme"`
+		User     string `json:"user"`
+	} `json:"postgres"`
+	Twitch struct {
 		Nick string `json:"nick"`
 		Pass string `json:"pass"`
 	} `json:"twitch"`

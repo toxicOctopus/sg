@@ -6,6 +6,7 @@ require (
 	github.com/ChimeraCoder/gojson v1.1.0
 	github.com/centrifugal/centrifuge-go v0.3.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/jackc/pgx v3.6.2+incompatible // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/peterbourgon/mergemap v0.0.0-20130613134717-e21c03b7a721
 	github.com/pkg/errors v0.9.1

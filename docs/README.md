@@ -37,5 +37,11 @@ simplest usable config(with ur creds):
 
 ##How to launch
 
-Run `make generate-config` or `make win-generate-config` (for Windows) after
-creating configs in required configs.
+- run `make generate-config` or `make win-generate-config` (for Windows) after
+creating required configs
+
+- init db structure with [goose](https://github.com/pressly/goose)
+```
+cd internal\database\migrations
+%GOPATH%\bin\goose.exe -v postgres "user=postgres dbname=postgres sslmode=disable password=password" up
+```

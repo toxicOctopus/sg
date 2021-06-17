@@ -15,7 +15,7 @@ func TestEnv_String(t *testing.T) {
 		},
 		{
 			name: "production",
-			e:    1,
+			e:    2,
 			want: "production",
 		},
 		{

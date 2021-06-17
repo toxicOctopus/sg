@@ -3,9 +3,8 @@ package config
 type Env int
 
 const (
-	// Local development env
 	Local Env = iota
-	// Production environment
+	Test
 	Production
 )
 
@@ -14,6 +13,7 @@ var envMap map[Env]string
 func init() {
 	envMap = map[Env]string{
 		Local:      "local",
+		Test:       "test",
 		Production: "production",
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"io/ioutil"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/toxicOctopus/sg/internal/centrifugo"
 	"github.com/toxicOctopus/sg/internal/config"
+	"github.com/toxicOctopus/sg/internal/database"
 	"github.com/toxicOctopus/sg/internal/twitch"
 
 	"github.com/sirupsen/logrus"
@@ -22,9 +24,18 @@ var (
 )
 
 func main() {
-	logrus.Info("Starting up @ " + startTime.String())
+	ctx := context.Background()
 
-	go runTwitchListener(globalConfig.GetCfg())
+	logrus.Info(ctx, "Starting up @ " + startTime.String())
+
+	pgConfig := globalConfig.GetCfg().Postgres
+	db, err := database.GetDB(pgConfig.Host, pgConfig.Port, pgConfig.Scheme, pgConfig.User, pgConfig.Password)
+	if err != nil {
+		logrus.Fatalf("DB connection error: %s", err)
+	}
+	database.LoadRegisteredChannels(ctx, db)
+
+	go runTwitchListener(ctx, globalConfig.GetCfg())
 
 	webCfg := globalConfig.GetCfg().Web
 	if err := fasthttp.ListenAndServe(webCfg.Host+":"+strconv.FormatInt(webCfg.Port, 10), fasthttp.CompressHandler(indexHandler)); err != nil {
@@ -96,7 +107,9 @@ func indexHandler(ctx *fasthttp.RequestCtx) {
 }
 
 // Blocking. Subscribes to twitch chat, publishes messages to centrifugo
-func runTwitchListener(cfg config.Config) {
+func runTwitchListener(ctx context.Context, cfg config.Config) {
+	//TODO ctx, goose
+
 	centrifugoClient, err := centrifugo.GetClient(cfg.Centrifugo.URL, cfg.Centrifugo.BackendUserID, cfg.Centrifugo.JwtToken)
 	if err != nil {
 		logrus.Fatal(err)

@@ -14,5 +14,12 @@
   "twitch": {
     "nick": "billy",
     "pass": "master"
+  },
+  "postgres": {
+    "host": "localhost",
+    "port": 5432,
+    "user": "postgres",
+    "password": "pwd",
+    "scheme": "public"
   }
 }

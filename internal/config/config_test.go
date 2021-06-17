@@ -103,7 +103,7 @@ func TestRead(t *testing.T) {
 		{
 			name: "success",
 			args: args{
-				env:        Local,
+				env:        Test,
 				valuesPath: "test_fixtures/values.json",
 			},
 			want: Config{
@@ -120,6 +120,19 @@ func TestRead(t *testing.T) {
 				},
 				ConfigReadInterval: "1m",
 				LogLevel:           "debug",
+				Postgres: struct {
+					Host     string `json:"host"`
+					Password string `json:"password"`
+					Port     int64  `json:"port"`
+					Scheme   string `json:"scheme"`
+					User     string `json:"user"`
+				}{
+					Host:     "localhost",
+					Password: "pwd",
+					Port:     5432,
+					Scheme:   "public",
+					User:     "postgres",
+				},
 				Twitch: struct {
 					Nick string `json:"nick"`
 					Pass string `json:"pass"`
@@ -141,7 +154,7 @@ func TestRead(t *testing.T) {
 		{
 			name: "fail",
 			args: args{
-				env:        Local,
+				env:        Test,
 				valuesPath: "test_fixtures/values.json",
 			},
 			want: Config{
@@ -158,6 +171,19 @@ func TestRead(t *testing.T) {
 				},
 				ConfigReadInterval: "1m",
 				LogLevel:           "debug",
+				Postgres: struct {
+					Host     string `json:"host"`
+					Password string `json:"password"`
+					Port     int64  `json:"port"`
+					Scheme   string `json:"scheme"`
+					User     string `json:"user"`
+				}{
+					Host:     "localhost",
+					Password: "pwd",
+					Port:     5432,
+					Scheme:   "public",
+					User:     "postgres",
+				},
 				Twitch: struct {
 					Nick string `json:"nick"`
 					Pass string `json:"pass"`

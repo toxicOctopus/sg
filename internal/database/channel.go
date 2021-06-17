@@ -1,6 +1,7 @@
-package db
+package database
 
 import (
+	"context"
 	"time"
 
 	"github.com/toxicOctopus/sg/internal/pkg/game"
@@ -8,7 +9,8 @@ import (
 )
 
 //TODO implement
-func LoadRegisteredChannels() twitch.RegisteredChannels {
+func LoadRegisteredChannels(ctx context.Context, db DB) twitch.RegisteredChannels {
+
 	return twitch.RegisteredChannels{
 		{
 			Name: "toxic_octopuz",
