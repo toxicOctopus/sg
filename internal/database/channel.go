@@ -13,7 +13,7 @@ import (
 	"github.com/toxicOctopus/sg/internal/twitch"
 )
 
-func LoadRegisteredChannels(ctx context.Context, db *pgx.Conn) (twitch.RegisteredChannels, error) {
+func GetRegisteredChannels(ctx context.Context, db *pgx.Conn) (twitch.RegisteredChannels, error) {
 	rc := twitch.RegisteredChannels{}
 	rows, err := db.Query(ctx, `
 	select

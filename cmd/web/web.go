@@ -10,6 +10,7 @@ import (
 	"github.com/toxicOctopus/sg/internal/centrifugo"
 	"github.com/toxicOctopus/sg/internal/config"
 	"github.com/toxicOctopus/sg/internal/database"
+	"github.com/toxicOctopus/sg/internal/pkg/game"
 	"github.com/toxicOctopus/sg/internal/twitch"
 
 	"github.com/sirupsen/logrus"
@@ -35,13 +36,20 @@ func main() {
 		logrus.Fatalf("DB connection error: %s", err)
 	}
 
-	registeredChannels, err := database.LoadRegisteredChannels(ctx, db)
+	//TODO listen postgres changes for rc
+	registeredChannels, err := database.GetRegisteredChannels(ctx, db)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	logrus.Info(registeredChannels)
 
-	go runTwitchListener(ctx, globalConfig.GetCfg())
+	allGames := make(map[string]*game.Game, len(registeredChannels))
+	for _, ch := range registeredChannels {
+		channelGame := game.InitGame(ch)
+		allGames[ch.Name] = &channelGame
+
+		go game.Run(ctx, ch, &channelGame)
+		go runTwitchListener(ctx, globalConfig.GetCfg(), ch)
+	}
 
 	webCfg := globalConfig.GetCfg().Web
 	if err := fasthttp.ListenAndServe(webCfg.Host+":"+strconv.FormatInt(webCfg.Port, 10), fasthttp.CompressHandler(indexHandler)); err != nil {
@@ -113,8 +121,8 @@ func indexHandler(ctx *fasthttp.RequestCtx) {
 }
 
 // Blocking. Subscribes to twitch chat, publishes messages to centrifugo
-func runTwitchListener(ctx context.Context, cfg config.Config) {
-	//TODO ctx, goose
+func runTwitchListener(ctx context.Context, cfg config.Config, ch twitch.Channel) {
+	//TODO ctx
 
 	centrifugoClient, err := centrifugo.GetClient(cfg.Centrifugo.URL, cfg.Centrifugo.BackendUserID, cfg.Centrifugo.JwtToken)
 	if err != nil {
@@ -135,11 +143,13 @@ func runTwitchListener(ctx context.Context, cfg config.Config) {
 	}()
 
 	twitchClient.Listen(
-		cfg.Twitch.Nick,
+		ch.Name,
 		func(from, message string) { // message callback
-			err = centrifugoClient.Publish(cfg.Centrifugo.TwitchBossChannel, centrifugo.FormMessage(message))
-			if err != nil {
-				logrus.Error(err)
+			if ch.MessageFits(message) {
+				err = centrifugoClient.Publish(cfg.Centrifugo.TwitchBossChannel, centrifugo.FormMessage(message))
+				if err != nil {
+					logrus.Error(err)
+				}
 			}
 			logrus.Debug(from, ": ", message)
 		},
@@ -148,5 +158,5 @@ func runTwitchListener(ctx context.Context, cfg config.Config) {
 		},
 		func(err error) { // warn callback
 			logrus.Error(err)
-		})
+	})
 }

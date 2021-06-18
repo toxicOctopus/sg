@@ -25,3 +25,14 @@ func (rc RegisteredChannels) GetChannel(name string) (Channel, error) {
 
 	return Channel{}, errors.New("channel not found")
 }
+
+// check if message can be part of the game. //TODO check sending frequency of every user or use native twitch for that?
+func (c *Channel) MessageFits(message string) bool {
+	for _, emote := range c.Emotes {
+		if emote.Name == message {
+			return true
+		}
+	}
+
+	return false
+}
