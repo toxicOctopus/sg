@@ -29,11 +29,17 @@ func main() {
 	logrus.Info(ctx, "Starting up @ " + startTime.String())
 
 	pgConfig := globalConfig.GetCfg().Postgres
-	db, err := database.GetDB(pgConfig.Host, pgConfig.Port, pgConfig.Scheme, pgConfig.User, pgConfig.Password)
+	db, err := database.GetDB(ctx, pgConfig.Host, pgConfig.Port, pgConfig.Scheme, pgConfig.User, pgConfig.Password)
+	defer db.Close(ctx)
 	if err != nil {
 		logrus.Fatalf("DB connection error: %s", err)
 	}
-	database.LoadRegisteredChannels(ctx, db)
+
+	registeredChannels, err := database.LoadRegisteredChannels(ctx, db)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logrus.Info(registeredChannels)
 
 	go runTwitchListener(ctx, globalConfig.GetCfg())
 

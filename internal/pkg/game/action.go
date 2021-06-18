@@ -2,20 +2,22 @@ package game
 
 type Action int
 
-type ViewerAction Action
+type ActionSource int
 
-type HostAction Action
-
+// Constants in the following block MUST be in the same order as "action_types" pg table. This is required for mapping.
 const (
-	ViewerDamage ViewerAction = iota + 1
+	ViewerDamage Action = iota + 1
 	ViewerDodge
 	ViewerBlock
 	ViewerOverPower
-)
 
-const (
-	HostSweep HostAction = iota + 300
+	HostSweep
 	HostBlock
 	HostTargetExecute
 	HostFake
+)
+
+const (
+	HostAction ActionSource = iota +1
+	ViewerAction
 )

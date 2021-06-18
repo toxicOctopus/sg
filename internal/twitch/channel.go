@@ -1,12 +1,14 @@
 package twitch
 
 import (
-	"github.com/pkg/errors"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type Channel struct {
+	ID       int
 	Name     string
 	Emotes   EmoteList // emotes usable for game
 	ActionCD time.Duration

@@ -1,19 +1,14 @@
 package database
 
-import "github.com/jackc/pgx"
+import (
+	"context"
+	"fmt"
 
-type DB *pgx.Conn
+	"github.com/jackc/pgx/v4"
+)
 
-func GetDB(host string, port int64, database, user, password string) (DB, error) {
-	c, err := pgx.Connect(pgx.ConnConfig{
-		Host:                 host,
-		Port:                 uint16(port),
-		Database:             database,
-		User:                 user,
-		Password:             password,
-		//Logger:               nil, //TODO db logger
-		//LogLevel:             pgx.LogLevelError,
-	})
+func GetDB(ctx context.Context, host string, port int64, database, user, password string) (*pgx.Conn, error) {
+	c, err := pgx.Connect(ctx, fmt.Sprintf("postgres://%v:%v@%v:%v/%v", user, password, host, port, database))
 	if err != nil {
 		return c, err
 	}
