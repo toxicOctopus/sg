@@ -27,9 +27,10 @@ var (
 func main() {
 	ctx := context.Background()
 
-	logrus.Info(ctx, "Starting up @ " + startTime.String())
+	logrus.Info(ctx, "Starting up @ "+startTime.String())
 
-	pgConfig := globalConfig.GetCfg().Postgres
+	cfg := globalConfig.GetCfg()
+	pgConfig := cfg.Postgres
 	db, err := database.GetDB(ctx, pgConfig.Host, pgConfig.Port, pgConfig.Scheme, pgConfig.User, pgConfig.Password)
 	defer db.Close(ctx)
 	if err != nil {
@@ -39,16 +40,34 @@ func main() {
 	//TODO listen postgres changes for rc
 	registeredChannels, err := database.GetRegisteredChannels(ctx, db)
 	if err != nil {
-		logrus.Fatal(err)
+		logrus.Fatal(ctx, err)
 	}
+
+	centrifugoClient, err := centrifugo.GetClient(cfg.Centrifugo.URL, cfg.Centrifugo.BackendUserID, cfg.Centrifugo.JwtToken)
+	if err != nil {
+		logrus.Fatal(ctx, err)
+	}
+	defer func() {
+		closeErr := centrifugoClient.Close()
+		logrus.Error(ctx, closeErr)
+	}()
+
+	twitchClient, err := twitch.GetClient(cfg.Twitch.Nick, cfg.Twitch.Pass)
+	if err != nil {
+		logrus.Fatal(ctx, err)
+	}
+	defer func() {
+		closeErr := twitchClient.Close()
+		logrus.Error(ctx, closeErr)
+	}()
 
 	allGames := make(map[string]*game.Game, len(registeredChannels))
 	for _, ch := range registeredChannels {
 		channelGame := game.InitGame(ch)
 		allGames[ch.Name] = &channelGame
 
-		go game.Run(ctx, ch, &channelGame)
-		go runTwitchListener(ctx, globalConfig.GetCfg(), ch)
+		go game.Run(twitchClient, centrifugoClient, ch, cfg.Centrifugo.TwitchBossChannel, &channelGame)
+		go runTwitchListener(twitchClient, ch, channelGame.Channel)
 	}
 
 	webCfg := globalConfig.GetCfg().Web
@@ -121,42 +140,24 @@ func indexHandler(ctx *fasthttp.RequestCtx) {
 }
 
 // Blocking. Subscribes to twitch chat, publishes messages to centrifugo
-func runTwitchListener(ctx context.Context, cfg config.Config, ch twitch.Channel) {
-	//TODO ctx
-
-	centrifugoClient, err := centrifugo.GetClient(cfg.Centrifugo.URL, cfg.Centrifugo.BackendUserID, cfg.Centrifugo.JwtToken)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	defer func() {
-		closeErr := centrifugoClient.Close()
-		logrus.Error(closeErr)
-	}()
-
-	twitchClient, err := twitch.GetClient(cfg.Twitch.Nick, cfg.Twitch.Pass)
-	if err != nil {
-		logrus.Fatal(err)
-	}
-	defer func() {
-		closeErr := twitchClient.Close()
-		logrus.Error(closeErr)
-	}()
-
+func runTwitchListener(
+	twitchClient *twitch.Client,
+	ch twitch.Channel,
+	gameChannel chan<- game.Action,
+) {
+	ctx := context.Background()
 	twitchClient.Listen(
 		ch.Name,
 		func(from, message string) { // message callback
-			if ch.MessageFits(message) {
-				err = centrifugoClient.Publish(cfg.Centrifugo.TwitchBossChannel, centrifugo.FormMessage(message))
-				if err != nil {
-					logrus.Error(err)
-				}
+			if action, err := ch.GetGameActionByViewer(from, message); err == nil {
+				gameChannel<- action
 			}
 			logrus.Debug(from, ": ", message)
 		},
 		func(err error) { // error callback
-			logrus.Fatal(err)
+			logrus.Fatal(ctx, err)
 		},
 		func(err error) { // warn callback
-			logrus.Error(err)
-	})
+			logrus.Error(ctx, err)
+		})
 }

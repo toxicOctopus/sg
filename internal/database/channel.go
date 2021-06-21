@@ -3,10 +3,7 @@ package database
 import (
 	"context"
 	"encoding/json"
-	"strconv"
-	"time"
 
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 
@@ -19,7 +16,6 @@ func GetRegisteredChannels(ctx context.Context, db *pgx.Conn) (twitch.Registered
 	select
 		c.id,
 		c.twitch_name,
-		c.action_cooldown,
 		array_to_json(ARRAY(select json_build_object(
 			'id', ce.emote_id,
 			'name', e.name,
@@ -47,14 +43,9 @@ func GetRegisteredChannels(ctx context.Context, db *pgx.Conn) (twitch.Registered
 		channel := twitch.Channel{}
 		var emotesJson []byte
 		emoteList := twitch.EmoteList{}
-		var actionCD pgtype.Int8
-		err = rows.Scan(&channel.ID, &channel.Name, &actionCD, &emotesJson)
+		err = rows.Scan(&channel.ID, &channel.Name, &emotesJson)
 		if err != nil {
 			return rc, errors.Wrap(err, "scanning channel rows")
-		}
-		actionCDDuration, err := time.ParseDuration(strconv.Itoa(int(actionCD.Int)) + "s")
-		if err == nil {
-			channel.ActionCD = actionCDDuration
 		}
 
 		if len(emotesJson) > 0 {

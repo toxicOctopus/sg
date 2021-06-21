@@ -5,10 +5,10 @@ import "github.com/toxicOctopus/sg/internal/pkg/game"
 type Emote struct {
 	ID           int
 	Name         string
-	ImagePath    string      `json:"image_path"`
-	ActionType   game.Action `json:"action_type"`
-	ActionName   string      `json:"action_name"`
-	ActionSource int         `json:"action_source"`
+	ImagePath    string          `json:"image_path"`
+	ActionType   game.ActionType `json:"action_type"`
+	ActionName   string          `json:"action_name"`
+	ActionSource int             `json:"action_source"`
 }
 
 type EmoteList []Emote

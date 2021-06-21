@@ -2,12 +2,15 @@ package twitch
 
 import (
 	"bufio"
-	"github.com/pkg/errors"
 	"net"
 	"net/textproto"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
+
+	"github.com/toxicOctopus/sg/internal/pkg/game"
 )
 
 const (
@@ -30,8 +33,8 @@ type Client struct {
 }
 
 //GetClient establishes connection including authorization
-func GetClient(nick, pass string) (Client, error) {
-	client := Client{}
+func GetClient(nick, pass string) (*Client, error) {
+	client := &Client{}
 
 	conn, err := net.Dial("tcp", ircAddress)
 	if err != nil {
@@ -124,4 +127,8 @@ func (c *Client) Listen(channel string, messageCallback func(from, message strin
 		}
 		time.Sleep(readInterval)
 	}
+}
+
+func (c *Client) GetViewers(channelName string) (map[string]game.Viewer, error) {
+
 }

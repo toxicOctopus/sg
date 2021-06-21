@@ -2,16 +2,16 @@ package twitch
 
 import (
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
+
+	"github.com/toxicOctopus/sg/internal/pkg/game"
 )
 
 type Channel struct {
 	ID       int
 	Name     string
 	Emotes   EmoteList // emotes usable for game
-	ActionCD time.Duration
 }
 
 type RegisteredChannels []Channel
@@ -26,13 +26,18 @@ func (rc RegisteredChannels) GetChannel(name string) (Channel, error) {
 	return Channel{}, errors.New("channel not found")
 }
 
-// check if message can be part of the game. //TODO check sending frequency of every user or use native twitch for that?
-func (c *Channel) MessageFits(message string) bool {
+func (c *Channel) GetGameActionByViewer(viewerName, message string) (game.Action, error) {
+	action := game.Action{
+		Type:   0,
+		Source: game.ViewerAction,
+	}
 	for _, emote := range c.Emotes {
 		if emote.Name == message {
-			return true
+			action.Type = emote.ActionType
+			action.ViewerName = viewerName
+			return action, nil
 		}
 	}
 
-	return false
+	return action, errors.New("message doesn't fit the channel")
 }
