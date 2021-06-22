@@ -19,18 +19,21 @@ const (
 	HostSweep
 	HostBlock
 	HostTargetExecute
+	HostFake
+
+	RegisterViewer
 
 	HostGameStart
 	HostGamePause
 	HostGameStop
 
 	GameStop
+
 	CooldownRefreshed
 
 	ViewerDamaged
 	ViewerDead
 
-	HostDamaged
 	HostBlocked
 	HostDead
 )

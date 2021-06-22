@@ -57,3 +57,7 @@ func (g *Game) calculateGameVariables() {
 func (h *Host) IsAlive() bool {
 	return h.HP > 0
 }
+
+func (v *Viewer) IsAlive() bool {
+	return v.HP > 0
+}

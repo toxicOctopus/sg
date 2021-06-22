@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
-	"github.com/toxicOctopus/sg/internal/pkg/game"
 )
 
 const (
@@ -127,8 +125,4 @@ func (c *Client) Listen(channel string, messageCallback func(from, message strin
 		}
 		time.Sleep(readInterval)
 	}
-}
-
-func (c *Client) GetViewers(channelName string) (map[string]game.Viewer, error) {
-
 }

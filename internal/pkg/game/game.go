@@ -4,11 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/centrifugal/centrifuge-go"
-	"github.com/sirupsen/logrus"
-
-	"github.com/toxicOctopus/sg/internal/centrifugo"
-	"github.com/toxicOctopus/sg/internal/twitch"
 	"github.com/toxicOctopus/sg/pkg/timer"
 )
 
@@ -25,8 +20,6 @@ const (
 type Game struct {
 	State State
 
-	Rules twitch.EmoteList
-
 	Host      Host
 	Cooldowns Cooldowns
 
@@ -35,12 +28,10 @@ type Game struct {
 	Variables variables
 }
 
-func InitGame(twitchChannel twitch.Channel) Game {
+func InitGame() Game {
 	channel := make(chan Action)
 	return Game{
 		State: AwaitingStart,
-
-		Rules: twitchChannel.Emotes,
 
 		Host: Host{
 			HP:             100,
@@ -54,13 +45,11 @@ func InitGame(twitchChannel twitch.Channel) Game {
 
 // blocking call
 func Run(
-	twitchClient *twitch.Client,
-	centrifugoClient *centrifuge.Client,
-	twitchChannel twitch.Channel,
-	centrifugoChannel string,
+	sendAction func(ctx context.Context, action Action) bool,
 	game *Game,
 ) {
 	ctx := context.Background()
+
 	for {
 		select {
 		case msg := <-game.Channel:
@@ -70,82 +59,86 @@ func Run(
 
 			switch msg.Type {
 			case ViewerDamage:
-				if !game.Runnable() {
+				if !game.IsRunnable() {
+					continue
+				}
+				viewer, exist := game.Viewers[msg.ViewerName]
+				if !exist || !viewer.IsAlive() {
 					continue
 				}
 				now := time.Now()
-				blocked := now.Sub(game.Host.BlockTimeStamp) <= game.Variables.HostBlockTimeSpan
-				if blocked {
-					err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				hostBlocked := now.Sub(game.Host.BlockTimeStamp) <= game.Variables.HostBlockTimeSpan
+				if hostBlocked {
+					sendAction(ctx, Action{
 						Type:        HostBlocked,
 						Source:      GameAction,
 						DamageDealt: 0,
-					}.String()))
-					if err != nil {
-						logrus.Error(err)
-					}
+					})
 					continue
 				}
 
-				err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				sendAction(ctx, Action{
 					Type:        ViewerDamage,
 					Source:      ViewerAction,
 					ViewerName:  msg.ViewerName,
 					DamageDealt: game.Variables.ViewerAttackDamage,
-				}.String()))
-				if err != nil {
-					logrus.Error(err)
-				}
+				})
 				game.Host.HP = game.Host.HP - game.Variables.ViewerAttackDamage
-				if game.Host.HP <= 0 {
-					err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				if !game.Host.IsAlive() {
+					sendAction(ctx, Action{
 						Type:   HostDead,
 						Source: GameAction,
-					}.String()))
-					if err != nil {
-						logrus.Error(err)
-					}
+					})
 					game.State = Ended
+					newGame := InitGame()
+					game = &newGame
+					Run(sendAction, game)
 				}
 			case ViewerBlock:
-				if !game.Runnable() {
+				if !game.IsRunnable() {
 					continue
 				}
-				err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				viewer, exist := game.Viewers[msg.ViewerName]
+				if !exist || !viewer.IsAlive() {
+					continue
+				}
+				viewer.BlockTimeStamp = time.Now()
+				game.Viewers[msg.ViewerName] = viewer
+
+				sendAction(ctx, Action{
 					Type:       ViewerBlock,
 					Source:     ViewerAction,
 					ViewerName: msg.ViewerName,
-				}.String()))
-				if err != nil {
-					logrus.Error(err)
-				}
-				if viewer, alive := game.Viewers[msg.ViewerName]; alive {
-					viewer.BlockTimeStamp = time.Now()
-					game.Viewers[msg.ViewerName] = viewer
-				}
+				})
+
 			case ViewerDodge:
-				if !game.Runnable() {
+				if !game.IsRunnable() {
 					continue
 				}
-				err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				viewer, exist := game.Viewers[msg.ViewerName]
+				if !exist || !viewer.IsAlive() {
+					continue
+				}
+				viewer.DodgeTimeStamp = time.Now()
+				game.Viewers[msg.ViewerName] = viewer
+
+				sendAction(ctx, Action{
 					Type:       ViewerDodge,
 					Source:     ViewerAction,
 					ViewerName: msg.ViewerName,
-				}.String()))
-				if err != nil {
-					logrus.Error(err)
-				}
-				if viewer, alive := game.Viewers[msg.ViewerName]; alive {
-					viewer.DodgeTimeStamp = time.Now()
-					game.Viewers[msg.ViewerName] = viewer
-				}
+				})
+
 			case ViewerOverPower:
-				if !game.Runnable() {
+				if !game.IsRunnable() {
+					continue
+				}
+				viewer, exist := game.Viewers[msg.ViewerName]
+				if !exist || !viewer.IsAlive() {
 					continue
 				}
 				//TODO implementation ????
 			case HostSweep:
-				if !game.Runnable() || game.Cooldowns.SweepTimer.IsActive() {
+				if !game.IsRunnable() || game.Cooldowns.SweepTimer.IsActive() {
 					continue
 				}
 				now := time.Now()
@@ -157,21 +150,18 @@ func Run(
 						Cooldown: Sweep,
 					}
 				})
-				err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				sendAction(ctx, Action{
 					Type:   HostSweep,
 					Source: HostAction,
-				}.String()))
-				if err != nil {
-					logrus.Error(err)
-				}
+				})
 				game.Cooldowns.SweepTimer.Start()
 
 				for name, viewer := range game.Viewers {
-					dodged := now.Sub(viewer.DodgeTimeStamp) <= game.Variables.ViewerDodgeTimeSpan
-					blocked := now.Sub(viewer.BlockTimeStamp) <= game.Variables.ViewerBlockTimeSpan
-					if !dodged {
+					viewerDodged := now.Sub(viewer.DodgeTimeStamp) <= game.Variables.ViewerDodgeTimeSpan
+					viewerBlocked := now.Sub(viewer.BlockTimeStamp) <= game.Variables.ViewerBlockTimeSpan
+					if !viewerDodged {
 						damageDealt := 0
-						if blocked {
+						if viewerBlocked {
 							damageDealt = game.Variables.SweepDamage / 2
 						} else {
 							damageDealt = game.Variables.SweepDamage
@@ -179,31 +169,25 @@ func Run(
 						viewer.HP = viewer.HP - damageDealt
 						game.Viewers[name] = viewer
 
-						err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+						sendAction(ctx, Action{
 							Type:           ViewerDamaged,
 							VictimNickname: viewer.Name,
 							Source:         GameAction,
 							DamageDealt:    damageDealt,
-						}.String()))
-						if err != nil {
-							logrus.Error(err)
-						}
+						})
 					}
 
-					if viewer.HP <= 0 {
+					if !viewer.IsAlive() {
 						delete(game.Viewers, name)
-						err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+						sendAction(ctx, Action{
 							Type:           ViewerDead,
 							VictimNickname: viewer.Name,
 							Source:         GameAction,
-						}.String()))
-						if err != nil {
-							logrus.Error(err)
-						}
+						})
 					}
 				}
 			case HostBlock:
-				if !game.Runnable() || game.Cooldowns.BlockTimer.IsActive() {
+				if !game.IsRunnable() || game.Cooldowns.BlockTimer.IsActive() {
 					continue
 				}
 				game.Cooldowns.BlockTimer = timer.AfterFunc(BlockCD, func() {
@@ -215,17 +199,18 @@ func Run(
 				})
 
 				game.Host.BlockTimeStamp = time.Now()
-
-				err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				game.Cooldowns.BlockTimer.Start()
+				sendAction(ctx, Action{
 					Type:   HostBlock,
 					Source: HostAction,
-				}.String()))
-				if err != nil {
-					logrus.Error(err)
-				}
-				game.Cooldowns.BlockTimer.Start()
+				})
 			case HostTargetExecute:
-				if !game.Runnable() || game.Cooldowns.ExecuteTimer.IsActive() || len(game.Viewers) == 1 {
+				if !game.IsRunnable() || game.Cooldowns.ExecuteTimer.IsActive() || len(game.Viewers) == 1 {
+					continue
+				}
+
+				viewer, exist := game.Viewers[msg.VictimNickname]
+				if !exist || !viewer.IsAlive() {
 					continue
 				}
 
@@ -236,46 +221,38 @@ func Run(
 						Cooldown: Execute,
 					}
 				})
-				err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				game.Cooldowns.ExecuteTimer.Start()
+				sendAction(ctx, Action{
 					Type:           HostTargetExecute,
 					Source:         HostAction,
 					VictimNickname: msg.VictimNickname,
-				}.String()))
-				if err != nil {
-					logrus.Error(err)
-				}
-				game.Cooldowns.ExecuteTimer.Start()
-
-				viewer, alive := game.Viewers[msg.VictimNickname]
-				if !alive {
-					continue
-				}
+				})
 
 				viewer.HP = viewer.HP - game.Variables.ExecuteDamage
 				game.Viewers[msg.VictimNickname] = viewer
 
-				err = centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+				sendAction(ctx, Action{
 					Type:           ViewerDamaged,
 					VictimNickname: viewer.Name,
 					Source:         GameAction,
 					DamageDealt:    game.Variables.ExecuteDamage,
-				}.String()))
-				if err != nil {
-					logrus.Error(err)
-				}
+				})
 
-				if viewer.HP <= 0 {
+				if !viewer.IsAlive() {
 					delete(game.Viewers, viewer.Name)
-					err := centrifugoClient.Publish(centrifugoChannel, centrifugo.FormMessage(Action{
+					sendAction(ctx, Action{
 						Type:           ViewerDead,
 						VictimNickname: viewer.Name,
 						Source:         GameAction,
-					}.String()))
-					if err != nil {
-						logrus.Error(err)
-					}
+					})
 				}
 
+			case RegisterViewer:
+				if _, exist := game.Viewers[msg.ViewerName]; !exist {
+					game.Viewers[msg.ViewerName] = Viewer{
+						Name: msg.ViewerName,
+					}
+				}
 			case HostGamePause:
 				game.State = Pause
 				if game.Cooldowns.SweepTimer.IsActive() {
@@ -300,13 +277,6 @@ func Run(
 					}
 				} else {
 					game.State = Starting
-					viewers, err := twitchClient.GetViewers(twitchChannel.Name)
-					if err != nil {
-						logrus.Error(ctx, err)
-						game.State = AwaitingStart
-						continue
-					}
-					game.Viewers = viewers
 					game.calculateGameVariables()
 				}
 				game.State = Running
@@ -314,18 +284,22 @@ func Run(
 				fallthrough
 			case GameStop:
 				game.State = Ended
-				newGame := InitGame(twitchChannel)
+				newGame := InitGame()
 				game = &newGame
-				Run(twitchClient, centrifugoClient, twitchChannel, centrifugoChannel, game)
+				Run(sendAction, game)
 
 			case CooldownRefreshed:
-				//TODO push to game centrifugo channel
+				sendAction(ctx, Action{
+					Type:     CooldownRefreshed,
+					Source:   GameAction,
+					Cooldown: msg.Cooldown,
+				})
 			}
 		}
 	}
 }
 
-func (g *Game) Runnable() bool {
+func (g *Game) IsRunnable() bool {
 	if g.State != Running && g.Host.IsAlive() {
 		return false
 	}

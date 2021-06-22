@@ -63,10 +63,17 @@ func main() {
 
 	allGames := make(map[string]*game.Game, len(registeredChannels))
 	for _, ch := range registeredChannels {
-		channelGame := game.InitGame(ch)
+		channelGame := game.InitGame()
 		allGames[ch.Name] = &channelGame
 
-		go game.Run(twitchClient, centrifugoClient, ch, cfg.Centrifugo.TwitchBossChannel, &channelGame)
+		go game.Run(func(ctx context.Context, action game.Action) bool {
+			err := centrifugoClient.Publish(cfg.Centrifugo.TwitchBossChannel, centrifugo.FormMessage(action.String()))
+			if err != nil {
+				logrus.Error(ctx, err)
+				return false
+			}
+			return true
+		}, &channelGame)
 		go runTwitchListener(twitchClient, ch, channelGame.Channel)
 	}
 
@@ -139,7 +146,7 @@ func indexHandler(ctx *fasthttp.RequestCtx) {
 	`)
 }
 
-// Blocking. Subscribes to twitch chat, publishes messages to centrifugo
+// Blocking. Subscribes to twitch chat, publishes messages to game channel
 func runTwitchListener(
 	twitchClient *twitch.Client,
 	ch twitch.Channel,
@@ -150,7 +157,7 @@ func runTwitchListener(
 		ch.Name,
 		func(from, message string) { // message callback
 			if action, err := ch.GetGameActionByViewer(from, message); err == nil {
-				gameChannel<- action
+				gameChannel <- action
 			}
 			logrus.Debug(from, ": ", message)
 		},
